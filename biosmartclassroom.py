@@ -42,6 +42,22 @@ CURRICULUM = {
 }
 
 # ==========================================
-# 3. INITIALIZING SESSION STATE
+# 3. INITIALIZING SESSION STATE (ส่วนที่แก้ไข)
 # ==========================================
-if 'user_db' not in st.
+if 'user_db' not in st.session_state:
+    st.session_state['user_db'] = {}
+
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
+# ==========================================
+# 4. MAIN APP LOGIC (ตัวอย่างเริ่มต้น)
+# ==========================================
+st.title("🧬 BioAdaptive System Pro")
+st.sidebar.title("เมนูการใช้งาน")
+
+# ตัวอย่างการดึงข้อมูลจาก Session State มาแสดงผล
+if not st.session_state['logged_in']:
+    st.info("กรุณาเข้าสู่ระบบเพื่อใช้งาน")
+else:
+    st.success("ยินดีต้อนรับกลับมา!")
