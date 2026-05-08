@@ -141,4 +141,88 @@ QUIZ_BANK = {
 # --- 3. UI FUNCTIONS ---
 def show_landing():
     st.markdown("<h1 style='text-align:center; color:#006837;'>🧬 BioAdaptive AI Portal</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>ระบบวิ
+    st.markdown("<p style='text-align:center;'>ระบบวิเคราะห์และปรับเปลี่ยนเนื้อหาชีววิทยา ม.4-6 รายบุคคล</p>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("### สำหรับนักเรียน\nทำแบบทดสอบเพื่อรับแผนการเรียนส่วนบุคคล")
+        if st.button("เข้าสู่ระบบนักเรียน"):
+            st.session_state.page = "lesson"
+            st.rerun()
+    with col2:
+        st.warning("### สำหรับคุณครู\nดู Heatmap และ Export รายงานรายห้อง")
+        if st.button("เข้าสู่ระบบแอดมิน"):
+            st.info("ส่วนแอดมินกำลังพัฒนา")
+
+    st.divider()
+    st.markdown("### 📚 โครงสร้างหลักสูตร 25 บทเรียน")
+    
+    # Grid Layout for Grades
+    c1, c2, c3 = st.columns(3)
+    grades_info = [("ม.4", "m4", c1), ("ม.5", "m5", c2), ("ม.6", "m6", c3)]
+    
+    for grade, color, col in grades_info:
+        with col:
+            st.markdown(f'<div class="grade-header {color}">ระดับชั้น {grade}</div>', unsafe_allow_html=True)
+            lessons = [k for k in QUIZ_BANK.keys() if grade in k]
+            for l in lessons:
+                st.caption(f"• {l.split(': ')[1]}")
+
+def show_lesson():
+    st.sidebar.title("📚 ระบบเมนู")
+    selected = st.sidebar.selectbox("เลือกบทเรียน", list(QUIZ_BANK.keys()))
+    
+    if st.sidebar.button("🏠 กลับหน้าหลัก"):
+        st.session_state.page = "landing"
+        st.rerun()
+
+    st.title(f"📖 {selected}")
+    score_key = f"score_{selected}"
+    
+    if score_key not in st.session_state:
+        st.subheader("📝 แบบทดสอบวิเคราะห์ระดับ (Pre-test)")
+        questions = QUIZ_BANK[selected]
+        with st.form(key=f"form_{selected}"):
+            u_ans = []
+            for i, q in enumerate(questions):
+                u_ans.append(st.radio(f"{i+1}. {q['q']}", q['a'], key=f"q_{selected}_{i}"))
+            
+            if st.form_submit_button("วิเคราะห์ผล"):
+                correct_count = sum(1 for a, q in zip(u_ans, questions) if a == q['correct'])
+                st.session_state[score_key] = (correct_count / len(questions)) * 100
+                st.rerun()
+    else:
+        score = st.session_state[score_key]
+        if score < 50:
+            level, color = "Seed (Beginner) 🌱", "#FBB040"
+        elif score < 100:
+            level, color = "Sprout (Intermediate) 🌿", "#8CC63F"
+        else:
+            level, color = "Bloom (Advanced) 🌸", "#006837"
+            
+        st.markdown(f"""
+            <div style="background-color:{color}; padding:20px; border-radius:15px; color:white; margin-bottom:20px;">
+                <h2>ระดับการเรียนรู้: {level}</h2>
+                <p>คะแนนความเข้าใจเบื้องต้น: {score:.0f}%</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.success(f"AI กำลังปรับเนื้อหาบทเรียน {selected.split(': ')[1]} ให้เหมาะสมกับคุณ...")
+        
+        if st.button("🔄 ทดสอบใหม่"):
+            del st.session_state[score_key]
+            st.rerun()
+
+# --- 4. MAIN ---
+def main():
+    apply_custom_style()
+    if "page" not in st.session_state:
+        st.session_state.page = "landing"
+        
+    if st.session_state.page == "landing":
+        show_landing()
+    else:
+        show_lesson()
+
+if __name__ == "__main__":
+    main()
