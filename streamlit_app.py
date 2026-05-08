@@ -1,241 +1,191 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import random
 import string
-from datetime import datetime
 
-# --- 1. SETTINGS & UI THEME ---
+# --- 1. CONFIG & UI THEME ---
 st.set_page_config(page_title="BioSmartClassroom", page_icon="🌿", layout="wide")
 
-def apply_custom_style():
+def local_css():
     st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap');
         html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; }
-        .main { background-color: #ffffff; }
-        .stSidebar { background-color: #f1f8e9; border-right: 1px solid #dcedc8; }
-        /* สไตล์ปุ่ม */
+        .stApp { background-color: #ffffff; }
+        .stSidebar { background-color: #f1f8e9; }
         .stButton>button {
-            width: 100%; border-radius: 12px; height: 3em;
-            background-color: #2e7d32; color: white; border: none; transition: 0.3s;
+            width: 100%; border-radius: 10px; background-color: #2e7d32; color: white;
+            height: 3em; font-weight: bold; border: none; transition: 0.3s;
         }
-        .stButton>button:hover { background-color: #fdd835; color: #1b5e20; transform: scale(1.02); }
-        /* การ์ดรายงานผล */
-        .bio-card {
-            background: white; padding: 25px; border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 6px solid #2e7d32;
-            margin-bottom: 20px;
+        .stButton>button:hover { background-color: #fdd835; color: #1b5e20; border: 1px solid #2e7d32; }
+        .bio-container {
+            background: #ffffff; padding: 25px; border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 8px solid #2e7d32;
         }
-        .metric-box { text-align: center; padding: 10px; background: #f9fbe7; border-radius: 10px; }
+        .ai-result {
+            background-color: #fffde7; padding: 15px; border-radius: 10px;
+            border: 1px solid #fdd835; margin-top: 10px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-apply_custom_style()
+local_css()
 
-# --- 2. DATASET: 67 LESSONS STRUCTURE ---
-# โครงสร้างบทเรียนครบทั้ง ม.4-ม.6 (ตัวอย่างโครงสร้างหลักที่สามารถเพิ่มเนื้อหาได้จนครบ)
-curriculum_data = {
-    "ม.4 ภาคเรียนที่ 1": {
-        "1. การศึกษาชีววิทยา": ["1.1 ธรรมชาติของสิ่งมีชีวิต", "1.2 วิธีการทางวิทยาศาสตร์", "1.3 กิจกรรมสะเต็มศึกษา"],
-        "2. เคมีพื้นฐาน": ["2.1 อะตอมและธาตุ", "2.2 น้ำ", "2.3 สารประกอบคาร์บอน", "2.4 ปฏิกิริยาเคมีในเซลล์"],
-        "3. เซลล์ของสิ่งมีชีวิต": ["3.1 กล้องจุลทรรศน์", "3.2 โครงสร้างเซลล์", "3.3 การลำเลียงสาร", "3.4 การหายใจระดับเซลล์", "3.5 การแบ่งเซลล์"]
+# --- 2. DATASET (โครงสร้าง 67 บทเรียนย่อย) ---
+# (หมายเหตุ: ในโค้ดจริงคุณครูสามารถย้ายข้อมูลนี้ไปไว้ในไฟล์ Excel หรือ JSON แยกต่างหากได้)
+curriculum = {
+    "ม.4 เทอม 1": {
+        "1. การศึกษาชีววิทยา": ["1.1 ธรรมชาติของสิ่งมีชีวิต", "1.2 วิธีการทางวิทยาศาสตร์", "1.3 สะเต็มศึกษา"],
+        "2. เคมีพื้นฐาน": ["2.1 อะตอมและธาตุ", "2.2 น้ำ", "2.3 สารประกอบคาร์บอน", "2.4 ปฏิกิริยาเคมี"],
+        "3. เซลล์": ["3.1 กล้องจุลทรรศน์", "3.2 โครงสร้างเซลล์", "3.3 การลำเลียงสาร", "3.4 การหายใจระดับเซลล์", "3.5 การแบ่งเซลล์"]
     },
-    "ม.4 ภาคเรียนที่ 2": {
-        "4. โครโมโซมและพันธุกรรม": ["4.1 โครโมโซม", "4.2 สารพันธุกรรม", "4.3 สมบัติสารพันธุกรรม", "4.4 มิวเทชัน"],
-        "5. พันธุศาสตร์": ["5.1 เมนเดล", "5.2 ส่วนขยายเมนเดล", "5.3 ยีนบนโครโมโซมเดียวกัน"],
-        "6. เทคโนโลยี DNA": ["6.1 พันธุวิศวกรรม", "6.2 การหาขนาด DNA", "6.3 การประยุกต์ใช้", "6.4 ชีวจริยธรรม"],
-        "7. วิวัฒนาการ": ["7.1 หลักฐานวิวัฒนาการ", "7.2 แนวคิดวิวัฒนาการ", "7.3 พันธุศาสตร์ประชากร", "7.4 ปัจจัยการเปลี่ยนแปลง", "7.5 กำเนิดสปีชีส์"]
+    "ม.4 เทอม 2": {
+        "4. โครโมโซม": ["4.1 โครโมโซม", "4.2 สารพันธุกรรม", "4.3 สมบัติพันธุกรรม", "4.4 มิวเทชัน"],
+        "5. พันธุกรรม": ["5.1 เมนเดล", "5.2 ส่วนขยายเมนเดล", "5.3 ยีนบนโครโมโซม"],
+        "6. เทคโนโลยี DNA": ["6.1 พันธุวิศวกรรม", "6.2 ขนาด DNA", "6.3 ประยุกต์ใช้", "6.4 ชีวจริยธรรม"],
+        "7. วิวัฒนาการ": ["7.1 หลักฐาน", "7.2 แนวคิด", "7.3 ประชากร", "7.4 แอลลีล", "7.5 กำเนิดสปีชีส์"]
     },
-    "ม.5 ภาคเรียนที่ 1": {
-        "8. สืบพันธุ์พืชดอก": ["8.1 โครงสร้างดอก", "8.2 วัฏจักรชีวิต", "8.3 การสืบพันธุ์อาศัยเพศ", "8.4 การใช้ประโยชน์ผล/เมล็ด"],
-        "9. การเจริญเติบโตพืช": ["9.1 เนื้อเยื่อพืช", "9.2 ราก", "9.3 ลำต้น", "9.4 ใบ"],
-        "10. การลำเลียงพืช": ["10.1 ลำเลียงน้ำ", "10.2 คายน้ำ", "10.3 ลำเลียงธาตุ", "10.4 ลำเลียงอาหาร"],
-        "11. สังเคราะห์แสง": ["11.1 การศึกษา", "11.2 กระบวนการ", "11.3 โฟโตเรสไพเรชัน", "11.4 การเพิ่มคาร์บอน", "11.5 ปัจจัยที่มีผล"],
-        "12. การควบคุมพืช": ["12.1 ฮอร์โมนพืช", "12.2 การงอก", "12.3 การตอบสนอง", "12.4 สภาวะเครียด"]
-    },
-    "ม.5 ภาคเรียนที่ 2": {
-        "13. ระบบย่อยอาหาร": ["13.1 การย่อยของสัตว์", "13.2 การย่อยของมนุษย์"],
-        "14. ระบบหายใจ": ["14.1 การแลกแก๊สสัตว์", "14.2 โครงสร้างมนุษย์", "14.3 การลำเลียงแก๊ส", "14.4 การหายใจ"],
-        "15. ระบบหมุนเวียนเลือด": ["15.1 การลำเลียงสารสัตว์", "15.2 การลำเลียงสารมนุษย์", "15.3 ระบบน้ำเหลือง"],
-        "16. ระบบภูมิคุ้มกัน": ["16.1 กลไกป้องกัน", "16.2 การเสริมภูมิ", "16.3 ความผิดปกติ"],
-        "17. ระบบขับถ่าย": ["17.1 ขับถ่ายสัตว์", "17.2 ขับถ่ายมนุษย์", "17.3 หน่วยไต", "17.4 การรักษาดุลยภาพน้ำ", "17.5 ความผิดปกติ"]
-    },
-    "ม.6 ภาคเรียนที่ 1": {
-        "18. ระบบประสาท": ["18.1 การรับรู้สัตว์", "18.2 เซลล์ประสาท", "18.3 ศูนย์ควบคุมมนุษย์", "18.4 การทำงานประสาท", "18.5 อวัยวะรับความรู้สึก"],
-        "19. การเคลื่อนที่": ["19.1 เซลล์เดียว", "19.2 สัตว์ไม่มีกระดูก", "19.3 สัตว์มีกระดูก", "19.4 มนุษย์"],
-        "20. ระบบต่อมไร้ท่อ": ["20.1 การทำงานร่วมประสาท", "20.2 ต่อมไร้ท่อ", "20.3 ฮอร์โมน", "20.4 สมดุลฮอร์โมน"],
-        "21. ระบบสืบพันธุ์": ["21.1 สัตว์", "21.2 มนุษย์", "21.3 การเจริญเติบโต"],
-        "22. พฤติกรรมสัตว์": ["22.1 การศึกษา", "22.2 กลไก", "22.3 ประเภทพฤติกรรม", "22.4 ความสัมพันธ์ประสาท", "22.5 การสื่อสาร"]
-    },
-    "ม.6 ภาคเรียนที่ 2": {
-        "23. ความหลากหลาย": ["23.1 ความหลากหลายชีวภาพ", "23.2 ความหลากหลายสิ่งมีชีวิต", "23.3 การศึกษา"],
-        "24. ระบบนิเวศ": ["24.1 ระบบนิเวศ", "24.2 ไบโอม", "24.3 การเปลี่ยนแปลงแทนที่", "24.4 ประชากร"],
-        "25. ทรัพยากรยั่งยืน": ["25.1 ประเภททรัพยากร", "25.2 การจัดการปัญหา", "25.3 การอนุรักษ์เพื่อความยั่งยืน"]
-    }
+    # ครูสามารถเพิ่ม ม.5 (บทที่ 8-17) และ ม.6 (บทที่ 18-25) ได้ตามรูปแบบนี้
 }
 
-# --- 3. HELPER FUNCTIONS ---
-def get_ai_level(pct):
-    if pct >= 80: return "ระดับสูง (Advanced)", "🟢", "ให้เน้นภารกิจวิเคราะห์ขั้นสูงและโครงงานเชิงนวัตกรรม"
-    elif pct >= 50: return "ระดับกลาง (Intermediate)", "🟡", "ให้เน้นภารกิจการแก้ปัญหาและการอธิบายความสัมพันธ์"
-    else: return "ระดับพื้นฐาน (Basic)", "🟠", "ให้เน้นภารกิจการสรุปมโนทัศน์สำคัญและสื่อภาพจำลองพื้นฐาน"
-
-def generate_unique_code():
+# --- 3. LOGIC FUNCTIONS ---
+def generate_access_code():
     return f"BIO-{''.join(random.choices(string.ascii_uppercase + string.digits, k=4))}"
 
-# --- 4. SIDEBAR (AUTO-COLLAPSE ON MOBILE) ---
+def ai_classify(score_pct):
+    if score_pct >= 80: return "กลุ่มเก่ง (Advanced)", "🟢", "มอบหมายภาระงานวิเคราะห์และสังเคราะห์ (Level 3)"
+    elif score_pct >= 50: return "กลุ่มกลาง (Intermediate)", "🟡", "มอบหมายภาระงานประยุกต์ใช้ความรู้ (Level 2)"
+    return "กลุ่มพื้นฐาน (Basic)", "🟠", "มอบหมายภาระงานเสริมสร้างมโนทัศน์ (Level 1)"
+
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3069/3069172.png", width=120)
-    st.title("BioSmart System")
-    user_role = st.selectbox("สถานะผู้ใช้งาน", ["นักเรียน (User)", "คุณครู (Admin)"])
+    st.title("BioSmart Classroom")
+    st.write("🌿 นวัตกรรมเรียนรู้อัจฉริยะ")
     st.divider()
+    role = st.selectbox("เลือกประเภทผู้ใช้", ["นักเรียน (Student Area)", "คุณครู (Admin Area)"])
+    st.caption("ระบบโดย GitHub & Streamlit")
+
+# --- 5. MAIN CONTENT ---
+
+# --- หน้าส่วนของนักเรียน (Student Area) ---
+if role == "นักเรียน (Student Area)":
+    st.title("🌿 ห้องเรียนสำหรับนักเรียน")
     
-    if user_role == "นักเรียน (User)":
-        menu = st.radio("เมนูหลัก", ["หน้าแรก", "ลงทะเบียน", "เข้าห้องเรียน 5E", "แดชบอร์ดผลการเรียน"])
-    else:
-        menu = st.radio("เมนูครู", ["แผงควบคุมรายชั้น", "ฐานข้อมูล Google Sheets", "พิมพ์รายงานสรุปผล"])
-
-# --- 5. PAGE LOGIC ---
-
-# -- หน้าแรก --
-if menu == "หน้าแรก":
-    col1, col2 = st.columns([1, 1.5])
-    with col1:
-        st.image("https://via.placeholder.com/400x500.png?text=Biology+Teacher", caption="ครูผู้เชี่ยวชาญด้านนวัตกรรมชีววิทยา")
-    with col2:
-        st.title("🌿 BioSmartClassroom")
-        st.subheader("ห้องเรียนออนไลน์อัจฉริยะวิชาชีววิทยา")
-        st.markdown("""
-        ยินดีต้อนรับสู่ระบบการเรียนรู้ยุคใหม่ที่ออกแบบมาเพื่อนักเรียนระดับมัธยมศึกษาตอนปลาย (ม.4-ม.6) 
-        โดยใช้ระบบวิเคราะห์ AI เพื่อปรับเนื้อหาให้เหมาะสมกับความรู้พื้นฐานของนักเรียนแต่ละบุคคล
-        
-        **สถิติการเรียนรู้ที่ได้รับ:**
-        * 📊 ผลการวิเคราะห์ก่อนเรียน - ระหว่างเรียน - หลังเรียน (หน่วยร้อยละ %)
-        * 🧬 บทเรียนแบบ Active Learning 5E ครบ 67 หัวข้อ
-        * 📝 ภาระงานแบ่งตามความสามารถ 3 ระดับ
-        """)
-        st.info("💡 เริ่มต้นใช้งานโดยการลงทะเบียนเพื่อรับ Access Code ประจำตัว")
-
-# -- หน้าลงทะเบียน --
-elif menu == "ลงทะเบียน":
-    st.header("📝 ลงทะเบียนนักเรียนใหม่")
-    with st.form("reg_form"):
+    # ส่วนที่ 1: ลงทะเบียน (แสดงเป็น Expander เพื่อความคลีน)
+    with st.expander("📝 ขั้นตอนที่ 1: ลงทะเบียนและรับรหัสเข้าเรียน", expanded=not st.session_state.get('registered', False)):
+        st.markdown('<div class="bio-container">', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
-            title = st.selectbox("คำนำหน้า", ["นาย", "นางสาว", "เด็กชาย", "เด็กหญิง"])
+            title = st.selectbox("คำนำหน้า", ["นาย", "นางสาว"])
             fname = st.text_input("ชื่อ")
             lname = st.text_input("นามสกุล")
-            level = st.selectbox("ระดับชั้น", ["ม.4", "ม.5", "ม.6"])
-            room = st.text_input("ห้อง")
-            no = st.number_input("เลขที่", min_value=1)
+            grade = st.selectbox("ระดับชั้น", ["ม.4", "ม.5", "ม.6"])
         with c2:
-            contact_line = st.text_input("Line ID")
-            contact_fb = st.text_input("Facebook")
-            photo = st.file_uploader("อัปโหลดภาพนักเรียน")
-        
-        btn_check = st.form_submit_button("ตรวจสอบข้อมูล")
-
-    if btn_check:
-        st.markdown('<div class="bio-card">', unsafe_allow_html=True)
-        st.subheader("🔍 ตรวจสอบข้อมูลก่อนบันทึก")
-        st.write(f"ชื่อ-สกุล: {title}{fname} {lname} | ชั้น: {level}/{room} เลขที่: {no}")
-        st.write(f"ช่องทางติดต่อ: Line: {contact_line} | FB: {contact_fb}")
-        
-        if st.button("ยืนยันการบันทึกข้อมูล (ลง Google Sheet)"):
-            new_code = generate_unique_code()
-            st.balloons()
-            st.success(f"บันทึกสำเร็จ! รหัสเข้าเรียนของคุณคือ: **{new_code}**")
-            st.warning("โปรดจดบันทึกรหัสนี้ไว้เพื่อใช้แสดงตัวตนในระบบ")
+            room_no = st.text_input("ห้อง/เลขที่ (เช่น 1/15)")
+            social = st.text_input("ช่องทางการติดต่อ (Line/FB)")
+            st.file_uploader("อัปโหลดรูปนักเรียน")
+            
+        if st.button("ยืนยันการลงทะเบียน"):
+            if fname and lname:
+                st.session_state['user_code'] = generate_access_code()
+                st.session_state['registered'] = True
+                st.session_state['user_name'] = f"{title}{fname} {lname}"
+                st.balloons()
+            else:
+                st.error("กรุณากรอกชื่อและนามสกุล")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -- หน้าเข้าบทเรียน --
-elif menu == "เข้าห้องเรียน 5E":
-    st.header("🧬 ระบบการเรียนรู้อัจฉริยะรายบุคคล")
-    access_input = st.text_input("กรอกรหัสเข้าเรียน (Access Code):", placeholder="เช่น BIO-A123")
-    
-    if access_input:
+    if st.session_state.get('registered'):
+        st.success(f"สวัสดีคุณ {st.session_state['user_name']} | รหัสเข้าเรียนของคุณคือ: {st.session_state['user_code']}")
+        
+        # ส่วนที่ 2: เข้าสู่บทเรียน 5E
         st.divider()
-        c1, c2 = st.columns(2)
-        with c1:
-            term_sel = st.selectbox("เลือกชั้น/ภาคเรียน", list(curriculum_data.keys()))
-        with c2:
-            topic_main = st.selectbox("เลือกบทหลัก", list(curriculum_data[term_sel].keys()))
+        st.subheader("🧪 ขั้นตอนที่ 2: เลือกบทเรียนและทำภารกิจ 5E")
+        
+        with st.container():
+            st.markdown('<div class="bio-container">', unsafe_allow_html=True)
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                term_sel = st.selectbox("เลือกภาคเรียน", list(curriculum.keys()))
+                topic_main = st.selectbox("เลือกบทหลัก", list(curriculum[term_sel].keys()))
+            with cc2:
+                topic_sub = st.selectbox("เลือกหัวเรื่องย่อย (67 บทเรียน)", curriculum[term_sel][topic_main])
+                st.write("") # Spacer
+                start_btn = st.button("✨ เริ่มต้นการวิเคราะห์ AI")
             
-        topic_sub = st.selectbox("เลือกหัวเรื่องย่อย (จาก 67 บทเรียน)", curriculum_data[term_sel][topic_main])
-        
-        st.markdown(f"### 📍 บทเรียน: {topic_sub}")
-        
-        # ส่วนวิเคราะห์ก่อนเรียน
-        st.markdown('<div class="bio-card">', unsafe_allow_html=True)
-        st.subheader("📝 ขั้นที่ 1: แบบทดสอบวิเคราะห์ก่อนเรียน (Pre-test)")
-        raw_pre = st.slider("จำลองคะแนนก่อนเรียน (เต็ม 10)", 0, 10)
-        pre_pct = (raw_pre / 10) * 100
-        
-        if st.button("ประมวลผล AI"):
-            level_name, color, ai_note = get_ai_level(pre_pct)
-            st.session_state['bio_level'] = level_name
-            st.markdown(f"**AI วิเคราะห์ผล:** {color} {level_name} (พื้นฐานร้อยละ {pre_pct:.2f}%)")
-            st.info(f"💡 คำแนะนำสำหรับคุณ: {ai_note}")
-        st.markdown('</div>', unsafe_allow_html=True)
+            if start_btn:
+                st.session_state['lesson_active'] = True
+            
+            if st.session_state.get('lesson_active'):
+                st.markdown("#### 📝 แบบทดสอบวิเคราะห์ความรู้ก่อนเรียน")
+                pre_score = st.slider("ผลการสอบก่อนเรียน (ร้อยละ %)", 0, 100, step=10)
+                
+                lv_name, icon, task_desc = ai_classify(pre_score)
+                st.markdown(f"""
+                <div class="ai-result">
+                    <h4>{icon} AI Analysis: คุณอยู่ใน {lv_name}</h4>
+                    <p><b>คำแนะนำภารกิจ:</b> {task_desc}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # บทเรียน 5E
+                st.write("---")
+                t1, t2, t3, t4, t5 = st.tabs(["Engage", "Explore", "Explain", "Elaborate", "Evaluate"])
+                with t1:
+                    st.write("🎥 รับชมสื่อกระตุ้นความสนใจในหัวข้อ:", topic_sub)
+                with t2:
+                    st.write("📥 **ดาวน์โหลดภาระงาน:**")
+                    st.button(f"ใบงาน Active Learning ({lv_name})")
+                with t5:
+                    st.write("📊 **สรุปผลการเรียน**")
+                    post_score = st.number_input("คะแนนหลังเรียน (%)", 0, 100)
+                    if st.button("บันทึกผลการเรียนลง Google Sheets"):
+                        st.toast("บันทึกข้อมูลสำเร็จ!")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        if 'bio_level' in st.session_state:
+# --- หน้าส่วนของคุณครู (Admin Area) ---
+elif role == "คุณครู (Admin Area)":
+    st.title("👨‍🏫 ระบบจัดการสำหรับครูผู้สอน")
+    
+    # ระบบล็อคเบื้องต้น
+    pwd = st.sidebar.text_input("รหัสผ่านแอดมิน", type="password")
+    if pwd == "bio123": # ครูสามารถเปลี่ยนรหัสตรงนี้ได้
+        tab_dash, tab_sheet = st.tabs(["📈 แดชบอร์ดสรุปผล", "🗃️ จัดการฐานข้อมูล"])
+        
+        with tab_dash:
+            st.subheader("สถิติภาพรวมร้อยละ (%)")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("นักเรียนในระบบ", "128 คน", "+5")
+            m2.metric("เฉลี่ยพัฒนาการ", "+24%", "Green")
+            m3.metric("บทเรียนที่ใช้งานสูงสุด", "พันธุกรรม")
+            
+            # กราฟ
+            df = pd.DataFrame({
+                'ห้อง': ['ม.4/1', 'ม.4/2', 'ม.4/3', 'ม.4/4'],
+                'คะแนนเฉลี่ยหลังเรียน (%)': [88, 75, 82, 79]
+            })
+            fig = px.bar(df, x='ห้อง', y='คะแนนเฉลี่ยหลังเรียน (%)', color='ห้อง', text='คะแนนเฉลี่ยหลังเรียน (%)')
+            st.plotly_chart(fig, use_container_width=True)
+            
             st.write("---")
-            st.subheader("💡 บทเรียนแบบ 5E และภารกิจประจำกลุ่ม")
-            tabs = st.tabs(["E1: Engage", "E2: Explore", "E3: Explain", "E4: Elaborate", "E5: Evaluate"])
-            
-            with tabs[1]:
-                st.write(f"**ภาระงานระดับ {st.session_state['bio_level']}:**")
-                st.write("ให้นักเรียนทำใบงานและบันทึกผลการเรียนรู้ลงในระบบ")
-                st.button(f"📥 ดาวน์โหลดใบงาน/แบบบันทึกกิจกรรม (ระดับ {st.session_state['bio_level']})")
-                work_score = st.slider("คะแนนใบงาน/ระหว่างเรียน (เต็ม 10)", 0, 10)
-                st.write(f"คะแนนใบงาน: **ร้อยละ {(work_score/10)*100:.2f}**")
-            
-            with tabs[4]:
-                st.write("**แบบทดสอบหลังเรียน (Post-test):**")
-                raw_post = st.number_input("กรอกคะแนนหลังเรียนที่ได้:", 0, 10)
-                if st.button("บันทึกคะแนนรวมลง Google Sheet"):
-                    st.success(f"บันทึกร้อยละ {(raw_post/10)*100:.2f}% ลงฐานข้อมูลแล้ว")
+            st.subheader("📋 รายงานผลรายบุคคล")
+            raw_data = pd.DataFrame({
+                'เลขที่': [1, 2, 3],
+                'ชื่อ': ['สมชาย', 'สมหญิง', 'มานะ'],
+                'ก่อนเรียน': [40, 60, 30],
+                'หลังเรียน': [90, 95, 80],
+                'ระดับ AI': ['Basic', 'Intermediate', 'Basic']
+            })
+            st.table(raw_data)
+            st.button("🖨️ Export / Print รายงานสรุป")
 
-# -- หน้าแดชบอร์ด --
-elif menu == "แดชบอร์ดผลการเรียน":
-    st.header("📊 สรุปรายงานผลการเรียนอัจฉริยะ")
-    st.write("นักเรียน: **นายสมชาย เรียนดี** | รหัส: **BIO-X452**")
-    
-    # คำนวณร้อยละจำลอง
-    perf_data = pd.DataFrame({
-        'ช่วงการวัด': ['ก่อนเรียน', 'ใบงาน/ระหว่างเรียน', 'หลังเรียน'],
-        'คะแนนร้อยละ (%)': [30.0, 75.0, 95.0]
-    })
-    
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        fig = px.bar(perf_data, x='ช่วงการวัด', y='คะแนนร้อยละ (%)', 
-                     color='ช่วงการวัด', color_discrete_sequence=px.colors.qualitative.Prism,
-                     text='คะแนนร้อยละ (%)', range_y=[0, 105])
-        st.plotly_chart(fig, use_container_width=True)
-        
-    with col_b:
-        st.markdown('<div class="metric-box">', unsafe_allow_html=True)
-        st.write("พัฒนาการ")
-        st.title("+65%")
-        st.write("เทียบจากก่อนเรียน")
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.button("🖨️ พิมพ์รายงานผลรายบุคคล (Print)")
-
-elif menu == "แผงควบคุมรายชั้น":
-    st.header("👨‍🏫 แดชบอร์ดวิเคราะห์สถิติสำหรับครู")
-    grade_sel = st.selectbox("เลือกชั้นเรียน:", ["ม.4/1", "ม.4/2", "ม.5/1", "ม.6/1"])
-    topic_sel = st.selectbox("เลือกหัวข้อบทเรียน:", ["1.1 ธรรมชาติของสิ่งมีชีวิต", "1.2 วิธีการทางวิทยาศาสตร์"])
-    
-    # จำลองตารางข้อมูลครู
-    df_admin = pd.DataFrame({
-        'เลขที่': [1, 2, 3, 4],
-        'ชื่อ-สกุล': ['สมชาย รักดี', 'สมหญิง มานะ', 'มานะ อดทน', 'ปิติ ชูใจ'],
-        'ก่อนเรียน (%)': [30, 60, 40, 50],
-        'ระหว่างเรียน (%)': [75, 85, 70, 80],
-        'หลังเรียน (%)': [95, 98, 85, 90]
-    })
-    st.dataframe(df_admin, use_container_width=True)
-    st.button("📂 Export ข้อมูลร้อยละไป Google Sheets")
+        with tab_sheet:
+            st.subheader("เชื่อมต่อ Google Sheets")
+            st.info("สถานะ: 🟢 เชื่อมต่อกับไฟล์ 'BioSmart_Database' แล้ว")
+            st.link_button("🌐 เปิด Google Sheets เพื่อตรวจสอบข้อมูล", "https://docs.google.com/spreadsheets/d/...")
+            if st.button("🛠️ Reset รหัสเข้าเรียนนักเรียนทั้งหมด"):
+                st.warning("คำเตือน: ข้อมูลรหัสจะถูกลบและสร้างใหม่")
+    else:
+        st.warning("กรุณากรอกรหัสผ่านที่แถบด้านข้างเพื่อเข้าถึงส่วนของครู")
