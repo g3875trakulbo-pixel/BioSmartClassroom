@@ -2,3 +2,4 @@ pandas
 plotly
 fpdf
 Pillow
+pip install gspread oauth2client
