@@ -1,59 +1,90 @@
 import streamlit as st
-import pandas as pd
-from modules import teacher_db, student_db, adaptive, export_tools
 
-# การตั้งค่าหน้าจอ
-st.set_page_config(page_title="Biology Adaptive Learning", layout="wide")
+def login_page():
+    # กำหนด CSS เพื่อปรับจานสีให้เป็น เขียว-ขาว-เหลือง ตามภาพต้นฉบับ
+    st.markdown("""
+        <style>
+        /* พื้นหลังหลัก */
+        .stApp {
+            background-color: #F0F4F1;
+        }
+        /* ปรับแต่งปุ่ม */
+        div.stButton > button:first-child {
+            background-color: #006837;
+            color: white;
+            border-radius: 10px;
+            border: none;
+            width: 100%;
+            height: 3em;
+        }
+        div.stButton > button:hover {
+            background-color: #8CC63F;
+            color: white;
+        }
+        /* ปรับแต่งหัวข้อ */
+        h1, h2, h3 {
+            color: #006837 !important;
+        }
+        /* กล่องลงทะเบียน/ล็อคอิน */
+        .auth-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            border-bottom: 5px solid #FBB040; /* เส้นขอบเหลืองด้านล่าง */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-def main():
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-
-    if not st.session_state.logged_in:
-        show_login_page()
-    else:
-        show_navigation()
-
-def show_login_page():
-    st.title("🧬 Biology Adaptive Learning Platform")
-    with st.form("login_form"):
-        user_type = st.selectbox("สถานะ", ["นักเรียน", "อาจารย์"])
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        if st.form_submit_button("เข้าสู่ระบบ"):
-            st.session_state.logged_in = True
-            st.session_state.user_type = user_type
-            st.rerun()
-
-def show_navigation():
-    st.sidebar.title(f"ผู้ใช้งาน: {st.session_state.user_type}")
+    st.title("🧬 BioSmart Adaptive Learning")
     
-    if st.session_state.user_type == "อาจารย์":
-        menu = ["Dashboard", "จัดการหลักสูตร", "วิเคราะห์ห้องเรียน", "Export ศูนย์รายงาน"]
-        choice = st.sidebar.radio("เมนูหลัก", menu)
+    # สร้าง Tab สำหรับเลือกระหว่าง เข้าสู่ระบบ กับ ลงทะเบียน
+    tab1, tab2 = st.tabs(["เข้าสู่ระบบ", "ลงทะเบียนใหม่"])
+
+    with tab1:
+        st.subheader("ยินดีต้อนรับกลับเข้าสู่บทเรียน")
+        with st.container():
+            username = st.text_input("ชื่อผู้ใช้งาน / อีเมล", key="login_user")
+            password = st.text_input("รหัสผ่าน", type="password", key="login_pass")
+            if st.button("เข้าสู่ระบบ"):
+                if username and password:
+                    st.session_state.authenticated = True
+                    st.session_state.name = username
+                    st.session_state.role = "Student" # สมมติเป็นนักเรียน
+                    st.rerun()
+                else:
+                    st.error("กรุณากรอกข้อมูลให้ครบถ้วน")
+
+    with tab2:
+        st.subheader("ลงทะเบียนเพื่อรับรหัสเข้าเรียน")
+        st.write("กรุณากรอกข้อมูลด้านล่าง ระบบ AI จะสร้างรหัสเข้าเรียน (Student ID) ให้คุณโดยอัตโนมัติ")
         
-        if choice == "Dashboard":
-            teacher_db.show()
-        elif choice == "จัดการหลักสูตร":
-            st.header("📚 Course Management (25 Lessons)")
-            # แสดงบทเรียน ม.4-ม.6 ที่สร้างไว้ในไฟล์ Excel ก่อนหน้า
-        elif choice == "วิเคราะห์ห้องเรียน":
-            st.header("📊 Analytics & AI Insights")
-            # ดึงข้อมูลจากฐานข้อมูลมาทำ Heatmap
+        with st.form("register_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                fullname = st.text_input("ชื่อ-นามสกุล")
+                email = st.text_input("อีเมล")
+            with col2:
+                grade = st.selectbox("ระดับชั้น", ["ม.4", "ม.5", "ม.6"])
+                new_password = st.text_input("กำหนดรหัสผ่าน", type="password")
             
-    else: # ฝั่งนักเรียน
-        menu = ["บทเรียนของฉัน", "ทำแบบทดสอบ", "รายงานผลการเรียน"]
-        choice = st.sidebar.radio("เมนูหลัก", menu)
-        
-        if choice == "บทเรียนของฉัน":
-            adaptive.show_adaptive_content() # AI เลือกบทเรียนที่เหมาะสม
-        elif choice == "ทำแบบทดสอบ":
-            st.header("📝 Quiz & Assessment")
-            # ระบบ Pre-test / Post-test
+            submit_reg = st.form_submit_button("ยืนยันการลงทะเบียน")
+            
+            if submit_reg:
+                if fullname and email and new_password:
+                    # จำลองการสร้างรหัสเข้าเรียน
+                    import random
+                    student_id = f"BIO-{random.randint(1000, 9999)}"
+                    
+                    st.success(f"ลงทะเบียนสำเร็จ! 🎉")
+                    st.balloons()
+                    
+                    # ส่วนของการรับรหัสเข้าเรียน
+                    st.info(f"**รหัสเข้าเรียนของคุณคือ: {student_id}**")
+                    st.warning("⚠️ โปรดจดจำรหัสนี้เพื่อใช้ในการส่งออกรายงาน (Export PDF/Excel)")
+                else:
+                    st.warning("กรุณากรอกข้อมูลให้ครบทุกช่อง")
 
-    if st.sidebar.button("Log out"):
-        st.session_state.logged_in = False
-        st.rerun()
-
+# สำหรับทดสอบรันหน้าเดียว
 if __name__ == "__main__":
-    main()
+    login_page()
