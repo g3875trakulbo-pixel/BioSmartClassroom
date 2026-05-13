@@ -1,87 +1,46 @@
 import streamlit as st
-import requests
-import pandas as pd
-import plotly.express as px
 
-# ตั้งค่าหน้าเว็บ
-st.set_page_config(page_title="BioSmart Classroom Pro", layout="wide")
+# การตั้งค่าหน้าเว็บ
+st.set_page_config(page_title="BioSmartClassroom", layout="wide")
 
-# ปรับแต่งความสวยงาม (Dark Mode Theme)
-st.markdown("""
-    <style>
-    .main { background-color: #0b140d; }
-    h1, h2, h3 { color: #4ade80 !important; font-family: 'Mitr', sans-serif; }
-    .stButton>button { background-color: #22c55e; color: white; width: 100%; border-radius: 8px; }
-    </style>
-""", unsafe_allow_html=True)
+# --- ส่วนหัว (Header) ---
+st.title("🐸 ห้องเรียนชีววิทยาออนไลน์ (BioSmartClassroom)")
+st.write("เวอร์ชั่น 1.10.05.26 | พัฒนาโดย นายตระกูล บุญชิต")
 
-st.title("🔬 BioSmart Classroom Pro")
-
-# แถบเมนูด้านข้าง
-menu = st.sidebar.radio("เลือกโหมดการใช้งาน", ["🎓 สำหรับนักเรียน", "👨‍🏫 สำหรับครู (Dashboard)"])
-
-if menu == "🎓 สำหรับนักเรียน":
-    st.header("บทเรียนชีววิทยาอัจฉริยะ")
-    name = st.text_input("กรอกชื่อ-นามสกุล ของคุณ", placeholder="ตัวอย่าง: สมชาย ใจดี")
+# --- แถบเมนูด้านข้าง (Sidebar Menu) ---
+with st.sidebar:
+    st.header("เมนู (Menu)")
+    user_role = st.radio("เลือกสถานะผู้ใช้งาน", ["ส่วนของนักเรียน (User)", "ส่วนของคุณครู (Admin)"])
     
     st.divider()
-    
-    # ตัวอย่างบทเรียน 5E (ขั้น Explain)
-    st.subheader("📖 บทเรียน: การรักษาดุลยภาพ (Homeostasis)")
-    st.info("""
-    **เนื้อหาสำคัญ:** ร่างกายมนุษย์มีการควบคุมสภาพแวดล้อมภายในให้คงที่เสมอ เช่น 
-    - อุณหภูมิร่างกาย (37°C)
-    - ระดับน้ำในร่างกาย
-    - ค่าความเป็นกรด-ด่าง (pH) ในเลือด
-    """)
-    
-    # ขั้น Evaluate (ทำแบบทดสอบ)
-    st.write("---")
-    st.write("🎯 **แบบทดสอบความเข้าใจ**")
-    q1 = st.radio("เมื่อเราออกกำลังกายจนตัวร้อน ร่างกายจะขับเหงื่อเพื่ออะไร?", 
-                  ["เพื่อให้ผิวชุ่มชื้น", "เพื่อลดอุณหภูมิร่างกาย", "เพื่อขับสารพิษ"])
-    
-    # คำนวณคะแนน (ตัวอย่างข้อเดียว)
-    score = 1 if q1 == "เพื่อลดอุณหภูมิร่างกาย" else 0
-    
-    if st.button("ส่งคะแนนเข้าสู่ระบบ"):
-        if name:
-            # ส่งข้อมูลไปที่ Backend (FastAPI)
-            payload = {"student_name": name, "lesson_id": 1, "score": score}
-            try:
-                res = requests.post("http://localhost:8000/submit", json=payload)
-                result = res.json()
-                st.success(f"บันทึกข้อมูลเรียบร้อย! {result['recommendation']}")
-                st.balloons()
-            except:
-                st.error("ไม่สามารถเชื่อมต่อกับ Server ได้ (อย่าลืมรัน uvicorn main:app นะครับ)")
-        else:
-            st.warning("กรุณากรอกชื่อก่อนส่งข้อมูล")
+    st.subheader("ข่าวสาร (News)")
+    st.info("อัปเดตล่าสุด: 10.05.2026 \n\nระบบรองรับการเรียนรู้แบบ 5E เต็มรูปแบบแล้ว!")
 
-else:
-    st.header("📊 ระบบวิเคราะห์ผลการเรียน (ครู)")
+# --- ส่วนแสดงเนื้อหาหลัก (Main Content) ---
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    with st.expander("📖 คู่มือการใช้ (Manual)", expanded=True):
+        st.markdown("""
+        **คำแนะนำ:** ห้องเรียนนี้เป็นนวัตกรรมการจัดการเรียนการสอนที่ปรับเปลี่ยนตาม
+        ความสามารถของนักเรียน (**Differential Instruction**) โดยมี AI ช่วยในการออกแบบ
+        
+        **วิธีใช้งาน:**
+        1. เลือกเมนูที่เกี่ยวข้องกับผู้ใช้ด้านซ้ายมือ
+        2. ปฏิบัติตามคำแนะนำในแต่ละบทเรียน
+        """)
+
+with col2:
+    st.subheader("📸 ภาพกิจกรรมและผลงาน")
+    # ส่วนนี้ไว้ใส่รูปภาพหรือ Progress Bar ของนักเรียน
+    st.image("https://via.placeholder.com/400x300.png?text=Student+Activities", caption="พื้นที่แสดงผลงานนักเรียน")
+
+# --- ตัวอย่างส่วนเนื้อหา (ถ้าเป็นนักเรียน) ---
+if user_role == "ส่วนของนักเรียน (User)":
+    st.divider()
+    st.header("บทเรียนสำหรับคุณ")
+    tab1, tab2, tab3 = st.tabs(["5E Learning", "แบบทดสอบ", "ส่งงาน"])
     
-    try:
-        # ดึงข้อมูลจาก Backend
-        res = requests.get("http://localhost:8000/stats")
-        if res.status_code == 200 and res.json():
-            data = res.json()
-            df = pd.DataFrame(data)
-            
-            # แสดงกราฟวิเคราะห์ข้อมูล
-            col1, col2 = st.columns([1, 1])
-            
-            with col1:
-                st.subheader("ตารางคะแนนล่าสุด")
-                st.dataframe(df[["student_name", "score"]], use_container_width=True)
-            
-            with col2:
-                st.subheader("กราฟสรุปภาพรวม")
-                fig = px.bar(df, x="student_name", y="score", color="score",
-                             labels={"student_name": "ชื่อนักเรียน", "score": "คะแนน"},
-                             color_continuous_scale="Greens")
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("ยังไม่มีข้อมูลนักเรียนในขณะนี้")
-    except:
-        st.error("ไม่สามารถเชื่อมต่อกับ Server ได้")
+    with tab1:
+        st.subheader("บทที่ 1.1: ธรรมชาติของสิ่งมีชีวิต")
+        st.video("https://www.youtube.com/watch?v=example") # ใส่ลิงก์วิดีโอสอนจริง
